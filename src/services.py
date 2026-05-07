@@ -2,7 +2,7 @@ import os
 import sys
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from src.models import User, Product, CartItem, Order, Tier, OrderStatus, validate_email, hash_password, verify_password
+from src.models import User, Product, CartItem, Order, Tier, OrderStatus, ProductStatus, validate_email, hash_password, verify_password
 
 
 class UserService:
@@ -14,7 +14,11 @@ class UserService:
         if not validate_email(email):
             raise ValueError("Invalid email format")
         
-        if username in self.users or any(u.email == email for u in self.users.values()):
+        # Check for duplicate username by iterating through values
+        if any(u.username == username for u in self.users.values()):
+            raise ValueError("Username or Email already exists")
+            
+        if any(u.email == email for u in self.users.values()):
             raise ValueError("Username or Email already exists")
 
         pw_hash, salt = hash_password(password)
@@ -228,6 +232,16 @@ class OrderService:
             if end_date and order.created_at > end_date:
                 continue
                 
+            # If filtering by category, check if the order contains any products in that category
+            if category:
+                has_matching_product = False
+                for item in order.items:
+                    if item.product.category == category:
+                        has_matching_product = True
+                        break
+                if not has_matching_product:
+                    continue
+
             stats['total_revenue'] += order.total_amount
             stats['total_orders'] += 1
             
