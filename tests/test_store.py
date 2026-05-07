@@ -204,7 +204,7 @@ class TestDiscountsAndTiers:
         # Force silver tier by adding points manually via helper or logic
         # Since add_points triggers upgrade, let's simulate a silver user
         user = store.register_user("alice", "alice@example.com", "pass")
-        user.points = 1500  # Should trigger silver upgrade
+        user.add_points(1500)  # Should trigger silver upgrade
         
         store.add_product("Laptop", "Electronics", 1000.0, 10)
         store.add_to_cart(user, "P1", 1)
@@ -215,7 +215,7 @@ class TestDiscountsAndTiers:
 
     def test_gold_tier_discount(self, store):
         user = store.register_user("alice", "alice@example.com", "pass")
-        user.points = 3500  # Should trigger gold upgrade
+        user.add_points(3500)  # Should trigger gold upgrade
         
         store.add_product("Laptop", "Electronics", 1000.0, 10)
         store.add_to_cart(user, "P1", 1)
