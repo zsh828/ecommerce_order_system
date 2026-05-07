@@ -1,6 +1,6 @@
 import pytest
 from src.models import (
-    User, Product, CartItem, Order, Tier, OrderStatus, 
+    User, Product, CartItem, Order, Tier, OrderStatus, ProductStatus, 
     validate_email, hash_password, verify_password
 )
 from datetime import datetime
