@@ -146,6 +146,10 @@ class Store:
         order_id = f"O{self.next_order_id}"
         self.next_order_id += 1
         
+        # Deduct stock when order is created
+        for item in cart_items:
+            item.product.decrease_stock(item.quantity)
+        
         order = Order(order_id, user, cart_items)
         self.orders[order_id] = order
         
