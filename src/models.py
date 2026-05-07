@@ -117,8 +117,6 @@ class Order:
         if self.status != "pending":
             raise ValueError("Order must be pending to pay")
         self.status = "paid"
-        # Deduct stock
-        for item in self.items:
-            item.product.decrease_stock(item.quantity)
         # Add points to user
         self.user.add_points(int(self.total_amount))
+        # Note: Stock deduction happens at order creation time now
