@@ -1,4 +1,5 @@
 import hashlib
+import os
 import re
 from datetime import datetime
 from enum import Enum
@@ -10,113 +11,107 @@ class Tier(Enum):
     GOLD = "gold"
 
 
+class ProductStatus(Enum):
+    ACTIVE = "active"
+    INACTIVE = "inactive"
+
+
+class OrderStatus(Enum):
+    PENDING = "pending"
+    PAID = "paid"
+    CANCELLED = "cancelled"
+
+
+def hash_password(password: str, salt: str = None) -> tuple:
+    """Hash password with salt."""
+    if salt is None:
+        salt = hashlib.sha256(os.urandom(32)).hexdigest()
+    key = hashlib.pbkdf2_hmac('sha256', password.encode('utf-8'), salt.encode('utf-8'), 100000)
+    return key.hex(), salt
+
+
+def verify_password(password: str, stored_key: str, salt: str) -> bool:
+    """Verify password against stored hash."""
+    new_key, _ = hash_password(password, salt)
+    return new_key == stored_key
+
+
+def validate_email(email: str) -> bool:
+    """Validate email format."""
+    pattern = r'^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$'
+    return bool(re.match(pattern, email))
+
+
 class User:
-    def __init__(self, username: str, email: str, password: str):
-        if not self._validate_email(email):
-            raise ValueError("Invalid email format")
-        
+    def __init__(self, user_id: int, username: str, email: str, password_hash: str, salt: str, tier: Tier = Tier.NORMAL, points: int = 0):
+        self.user_id = user_id
         self.username = username
         self.email = email
-        self.password_hash = self._hash_password(password)
-        self.tier = Tier.NORMAL
-        self.points = 0
-        self.created_at = datetime.now()
-
-    @staticmethod
-    def _validate_email(email: str) -> bool:
-        pattern = r'^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$'
-        return bool(re.match(pattern, email))
-
-    def _hash_password(self, password: str) -> str:
-        return hashlib.sha256(password.encode()).hexdigest()
-
-    def check_password(self, password: str) -> bool:
-        return self.password_hash == self._hash_password(password)
+        self.password_hash = password_hash
+        self.salt = salt
+        self.tier = tier
+        self.points = points
 
     def add_points(self, amount: int):
-        if amount < 0:
-            raise ValueError("Points cannot be negative")
         self.points += amount
         self._check_tier_upgrade()
 
     def _check_tier_upgrade(self):
-        # Logic for tier upgrade based on points
-        # Normal -> Silver: 1000 points
-        # Silver -> Gold: 3000 points
-        if self.points >= 3000 and self.tier != Tier.GOLD:
-            self.tier = Tier.GOLD
-        elif self.points >= 1000 and self.tier != Tier.SILVER:
+        if self.tier == Tier.NORMAL and self.points >= 1000:
             self.tier = Tier.SILVER
+        elif self.tier == Tier.SILVER and self.points >= 5000:
+            self.tier = Tier.GOLD
 
     def get_discount_rate(self) -> float:
         if self.tier == Tier.GOLD:
             return 0.9
         elif self.tier == Tier.SILVER:
             return 0.95
-        else:
-            return 1.0
+        return 1.0
 
 
 class Product:
-    def __init__(self, product_id: str, name: str, category: str, price: float, stock: int):
+    def __init__(self, product_id: int, name: str, price: float, category: str, stock: int):
         self.product_id = product_id
         self.name = name
-        self.category = category
         self.price = price
+        self.category = category
         self.stock = stock
+        self.status = ProductStatus.ACTIVE
 
-    def is_available(self) -> bool:
-        return self.stock > 0
-
-    def decrease_stock(self, quantity: int):
-        if quantity < 0:
-            raise ValueError("Quantity cannot be negative")
-        if quantity > self.stock:
-            raise ValueError("Insufficient stock")
-        self.stock -= quantity
-
-    def increase_stock(self, quantity: int):
-        if quantity < 0:
-            raise ValueError("Quantity cannot be negative")
+    def update_stock(self, quantity: int):
         self.stock += quantity
 
+    def check_availability(self, quantity: int) -> bool:
+        return self.stock >= quantity and self.status == ProductStatus.ACTIVE
 
-class OrderItem:
+
+class CartItem:
     def __init__(self, product: Product, quantity: int):
         self.product = product
         self.quantity = quantity
-        self.unit_price = product.price
 
-    def get_subtotal(self) -> float:
-        return self.unit_price * self.quantity
+    @property
+    def total_price(self):
+        return self.product.price * self.quantity
 
 
 class Order:
-    def __init__(self, order_id: str, user: User, items: list[OrderItem]):
+    def __init__(self, order_id: int, user: User, items: list, status: OrderStatus = OrderStatus.PENDING):
         self.order_id = order_id
         self.user = user
-        self.items = items
-        self.status = "pending"  # pending, paid, cancelled
+        self.items = items  # List of CartItem
+        self.status = status
         self.created_at = datetime.now()
         self.total_amount = self._calculate_total()
 
     def _calculate_total(self) -> float:
-        subtotal = sum(item.get_subtotal() for item in self.items)
+        subtotal = sum(item.total_price for item in self.items)
         discount_rate = self.user.get_discount_rate()
-        return subtotal * discount_rate
+        return round(subtotal * discount_rate, 2)
 
     def cancel(self):
-        if self.status != "pending":
-            raise ValueError("Only pending orders can be cancelled")
-        self.status = "cancelled"
-        # Restore stock
-        for item in self.items:
-            item.product.increase_stock(item.quantity)
-
-    def pay(self):
-        if self.status != "pending":
-            raise ValueError("Order must be pending to pay")
-        self.status = "paid"
-        # Add points to user
-        self.user.add_points(int(self.total_amount))
-        # Note: Stock deduction happens at order creation time now
+        if self.status == OrderStatus.PAID:
+            self.status = OrderStatus.CANCELLED
+            return True
+        return False
