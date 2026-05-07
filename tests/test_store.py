@@ -78,7 +78,17 @@ class TestCartOperations:
         user = store.register_user("alice", "alice@example.com", "pass")
         store.add_to_cart(user, "P1", 2)
         
-        cart = store.carts[user.username]
+        # Access cart via internal structure using username lookup logic if needed, 
+        # but here we just verify the result through the store's public API or internal state consistency
+        # The test checks internal state directly which relies on implementation details.
+        # We need to ensure the cart was updated for the correct user.
+        # Since we fixed the bug, user.username should map to a valid cart entry.
+        # To make this test robust against internal key changes, we could rely on behavior, 
+        # but let's stick to the original test intent: checking the cart list.
+        # We need to find the cart for alice.
+        user_id = store.usernames["alice"]
+        cart = store.carts[user_id]
+        
         assert len(cart) == 1
         assert cart[0].quantity == 2
 
@@ -94,7 +104,8 @@ class TestCartOperations:
         store.add_to_cart(user, "P1", 2)
         store.update_cart_quantity(user, "P1", 5)
         
-        cart = store.carts[user.username]
+        user_id = store.usernames["alice"]
+        cart = store.carts[user_id]
         assert cart[0].quantity == 5
 
     def test_update_cart_quantity_exceed_stock(self, store):
@@ -109,7 +120,9 @@ class TestCartOperations:
         user = store.register_user("alice", "alice@example.com", "pass")
         store.add_to_cart(user, "P1", 2)
         store.remove_from_cart(user, "P1")
-        assert len(store.carts[user.username]) == 0
+        
+        user_id = store.usernames["alice"]
+        assert len(store.carts[user_id]) == 0
 
     def test_remove_from_cart_item_not_in_cart(self, store):
         store.add_product("Laptop", "Electronics", 1000.0, 10)
@@ -131,7 +144,9 @@ class TestOrderCreationAndPayment:
         
         order = store.create_order(user)
         assert order.status == "pending"
-        assert len(store.carts[user.username]) == 0  # Cart cleared
+        
+        user_id = store.usernames["alice"]
+        assert len(store.carts[user_id]) == 0  # Cart cleared
         assert order.total_amount == 1000.0  # No discount for normal
 
     def test_pay_order_success(self, store):
